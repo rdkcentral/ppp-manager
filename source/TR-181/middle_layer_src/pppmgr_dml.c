@@ -252,27 +252,27 @@ PPP_GetParamStringValue
 
         if (flag & DML_PPP_SUPPORTED_NCP_ATCP)
         {
-            strncat(pValue, "ATCP,",sizeof("ATCP,"));
+            strcat(pValue, "ATCP,");
         }
 
         if (flag & DML_PPP_SUPPORTED_NCP_IPCP)
         {
-            strncat(pValue, "IPCP,",sizeof("IPCP,"));
+            strcat(pValue, "IPCP,");
         }
 
         if (flag & DML_PPP_SUPPORTED_NCP_IPXCP)
         {
-            strncat(pValue, "IPXCP,",sizeof("IPXCP,"));
+            strcat(pValue, "IPXCP,");
         }
 
         if (flag & DML_PPP_SUPPORTED_NCP_NBFCP)
         {
-            strncat(pValue, "NBFCP,",sizeof("NBFCP,"));
+            strcat(pValue, "NBFCP,");
         }
 
         if (flag & DML_PPP_SUPPORTED_NCP_IPv6CP)
         {
-            strncat(pValue, "IPv6CP,",sizeof("IPv6CP,"));
+            strcat(pValue, "IPv6CP,");
         }
 
         return 0;
@@ -334,7 +334,6 @@ Interface_GetEntryCount
         ANSC_HANDLE                 hInsContext
     )
 {
-      ULONG        uiTotalIfaces ;
       return DmlGetTotalNoOfPPPInterfaces(NULL);
 }
 
@@ -734,7 +733,6 @@ Interface_GetParamStringValue
     )
 {
     PDML_PPP_IF_FULL           pEntry                  = (PDML_PPP_IF_FULL)hInsContext;
-    PUCHAR                          pString                 = NULL;
     uint32_t retStatus = -1;
 
     pthread_mutex_lock(&pEntry->mDataMutex);
@@ -826,15 +824,7 @@ Interface_SetParamBoolValue
     )
 {
     PDML_PPP_IF_FULL           pEntry                  = (PDML_PPP_IF_FULL)hInsContext;
-
-    char command[1024] = { 0 };
-    char config_command[1024] = { 0 };
-    char service_name[256] = { 0 };
-    char auth_proto[8] = { 0 };
-    pthread_t pppdThreadId;
-    BOOL retStatus = FALSE;
-    uint32_t getAttempts = 0;
-    uint32_t waitTime = 0;
+    bool retStatus = TRUE;
 
     if(pEntry == NULL)
     {
@@ -983,7 +973,7 @@ Interface_SetParamUlongValue
     {
         /* save update to backup */
         pEntry->Cfg.AutoDisconnectTime = uValue;
-        snprintf(buf, sizeof(buf), "sleep %d && pppoe-stop &",pEntry->Cfg.AutoDisconnectTime);
+        snprintf(buf, sizeof(buf), "sleep %ld && pppoe-stop &",pEntry->Cfg.AutoDisconnectTime);
         system(buf);
         retStatus = TRUE;
     }
@@ -1012,7 +1002,7 @@ Interface_SetParamUlongValue
         retStatus = FALSE;
 #else
         pEntry->Cfg.MaxMRUSize = uValue;
-        snprintf(buf,sizeof(buf),"%d",uValue);
+        snprintf(buf,sizeof(buf),"%ld",uValue);
         set_syscfg(buf,"MaxMRUSize");
 
         retStatus = TRUE;
@@ -1242,11 +1232,9 @@ Interface_Commit
         ANSC_HANDLE                 hInsContext
     )
 {
-    PDATAMODEL_PPP             pMyObject               = (PDATAMODEL_PPP      )g_pBEManager->hPPP;
-
     PDML_PPP_IF_FULL           pEntry                  = (PDML_PPP_IF_FULL    )hInsContext;
     pthread_mutex_lock(&pEntry->mDataMutex);
-        PppDmlSetIfCfg(NULL, &pEntry->Cfg);
+    PppDmlSetIfCfg(NULL, &pEntry->Cfg);
     pthread_mutex_unlock(&pEntry->mDataMutex);    
 
     return 0;
@@ -1794,11 +1782,10 @@ PPPoE_Commit
         ANSC_HANDLE                 hInsContext
     )
 {
-    PDATAMODEL_PPP             pMyObject               = (PDATAMODEL_PPP      )g_pBEManager->hPPP;
     PDML_PPP_IF_FULL           pEntry                  = (PDML_PPP_IF_FULL    )hInsContext;
 
     pthread_mutex_lock(&pEntry->mDataMutex);
-        PppDmlSetIfCfg(NULL, &pEntry->Cfg);
+    PppDmlSetIfCfg(NULL, &pEntry->Cfg);
     pthread_mutex_unlock(&pEntry->mDataMutex);
    
     return 0;
@@ -2413,7 +2400,6 @@ IPCP_Commit
         ANSC_HANDLE                 hInsContext
     )
 {
-    PDATAMODEL_PPP             pMyObject               = (PDATAMODEL_PPP      )g_pBEManager->hPPP;
     PDML_PPP_IF_FULL           pEntry                  = (PDML_PPP_IF_FULL    )hInsContext;
 
     pthread_mutex_lock(&pEntry->mDataMutex);
