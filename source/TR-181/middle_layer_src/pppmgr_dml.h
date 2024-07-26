@@ -216,7 +216,8 @@ typedef  enum _DML_PPP_AUTH
 {
     DML_PPP_AUTH_PAP                           = 1,
     DML_PPP_AUTH_CHAP,
-    DML_PPP_AUTH_MS_CHAP
+    DML_PPP_AUTH_MS_CHAP,
+    DML_PPP_AUTH_AUTO
 }
 DML_PPP_AUTH, *PDML_PPP_AUTH;
 

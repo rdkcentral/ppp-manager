@@ -173,7 +173,7 @@ limitations under the License.
             </parameter>
             <parameter>
               <name>AuthenticationProtocol</name>
-              <type>string: PAP(1),CHAP(2),MS-CHAP(3)</type>
+              <type>string: PAP(1),CHAP(2),MS-CHAP(3),AUTO(4)</type>
               <syntax>uint32/mapped</syntax>
             </parameter>
             <parameter>

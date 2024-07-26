@@ -315,6 +315,8 @@ PppMgr_StartPppClient (UINT InstanceNumber)
 
         switch (pEntry->Info.AuthenticationProtocol)
         {
+            case DML_PPP_AUTH_AUTO:
+                break;
             case DML_PPP_AUTH_PAP:
                 snprintf(auth_proto, sizeof(auth_proto), " require-pap refuse-chap refuse-mschap noauth");
                 break;
@@ -681,9 +683,21 @@ PppDmlGetIntfValuesFromPSM
     retPsmGet = PSM_Get_Record_Value2(bus_handle, g_Subsystem, param_name, NULL, &param_value);
     if (retPsmGet == CCSP_SUCCESS && param_value != NULL)
     {
+        if (strcmp(param_value, "PAP") == 0)
+        {
+            pEntry->Info.AuthenticationProtocol = DML_PPP_AUTH_PAP;
+        }
         if (strcmp(param_value, "CHAP") == 0)
         {
             pEntry->Info.AuthenticationProtocol = DML_PPP_AUTH_CHAP;
+        }
+        if (strcmp(param_value, "MS-CHAP") == 0)
+        {
+            pEntry->Info.AuthenticationProtocol = DML_PPP_AUTH_MS_CHAP;
+        }
+        if (strcmp(param_value, "AUTO") == 0)
+        {
+            pEntry->Info.AuthenticationProtocol = DML_PPP_AUTH_AUTO;
         }
         CcspTraceInfo(("%s %d: from PSM %s = %s\n", __FUNCTION__, __LINE__, param_name, param_value));
     }
