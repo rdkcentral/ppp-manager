@@ -122,11 +122,12 @@ PPPDmlGetIfInfo
     (
         ANSC_HANDLE                 hContext,
         ULONG                       ulInstanceNumber,
-        PDML_PPP_IF_INFO       pInfo
+        PDML_PPP_IF_INFO            pInfo
     )
 {
     if ( pInfo == NULL )
     {
+        CcspTraceInfo(("%s - %d : Invalid PPP Information\n", __FUNCTION__, __LINE__));
         return ANSC_STATUS_FAILURE;
     }
 
@@ -165,7 +166,7 @@ ANSC_STATUS PppMgr_SendPppdStartEventToQ (UINT InstanceNumber)
         PppMgr_GetIfaceData_release(pEntry);
         return ANSC_STATUS_SUCCESS;
     }
-
+    CcspTraceError(("%s - %d : Pppd Start Event Failed\n", __FUNCTION__, __LINE__));
     return ANSC_STATUS_FAILURE;
 }
 
@@ -177,7 +178,7 @@ bool PppMgr_EnableIf (UINT InstanceNumber, bool Enable)
         CcspTraceInfo(("%s %d: Handling PPP client start for instance %d\n", __FUNCTION__, __LINE__, InstanceNumber));
         if (PppMgr_SendPppdStartEventToQ(InstanceNumber) != ANSC_STATUS_SUCCESS)
         {
-            CcspTraceInfo(("%s %d: posting PPPMGR_EXEC_PPP_CLIENT event to Q failed for instance %d\n", __FUNCTION__, __LINE__, InstanceNumber));
+            CcspTraceError(("%s %d: posting PPPMGR_EXEC_PPP_CLIENT event to Q failed for instance %d\n", __FUNCTION__, __LINE__, InstanceNumber));
             return false;
         }
     }
@@ -186,7 +187,7 @@ bool PppMgr_EnableIf (UINT InstanceNumber, bool Enable)
         CcspTraceInfo (("%s %d: disabling PPP client on instance %d\n", __FUNCTION__, __LINE__, InstanceNumber));
         if (PppMgr_StopPppClient(InstanceNumber) != ANSC_STATUS_SUCCESS)
         {
-            CcspTraceInfo(("%s %d: failed to stop ppp client on instace %d\n", __FUNCTION__, __LINE__, InstanceNumber));
+            CcspTraceError(("%s %d: failed to stop ppp client on instance %d\n", __FUNCTION__, __LINE__, InstanceNumber));
             return false;
         }
     }
@@ -459,6 +460,7 @@ ANSC_STATUS PppMgr_StopPppClient (UINT InstanceNumber)
         PppMgr_SetIPv6CPStatusDown(InstanceNumber);
         return ANSC_STATUS_SUCCESS;
     }
+    CcspTraceError(("%s - %d : Failed to stop PPP client\n", __FUNCTION__, __LINE__));
     return ANSC_STATUS_FAILURE;
 }
 
@@ -501,7 +503,7 @@ int validateUsername( char* pString)
         return 0;
     }
     else {
-       CcspTraceWarning(("Invalid username '%s'\n", pString));
+       CcspTraceError(("Invalid username '%s'\n", pString));
        return -1;
     }
 }
@@ -601,11 +603,12 @@ PppDmlGetIfEntry
     (
         ANSC_HANDLE                 hContext,
         ULONG                       ulIndex,
-        PDML_PPP_IF_FULL       pEntry
+        PDML_PPP_IF_FULL            pEntry
     )
 {
     if (!pEntry)
     {
+        CcspTraceError(("%s - %d : Invalid input parameter, Failed to get PppDml Entry\n", __FUNCTION__, __LINE__));
         return ANSC_STATUS_FAILURE;
     }
 
@@ -628,9 +631,10 @@ PppDmlGetIntfValuesFromPSM
     char buff[10];
 
     if (!pEntry)
-        {
+    {
+        CcspTraceError(("%s - %d : Invalid input parameter, Failed to get PppDml Values from PSM\n", __FUNCTION__, __LINE__));
         return ANSC_STATUS_FAILURE;
-        }
+    }
 
     // init mutex
     pthread_mutexattr_t     muttex_attr;
@@ -871,6 +875,7 @@ ANSC_STATUS DmlPppMgrGetParamValues(char *pComponent, char *pBus, char *pParamNa
         free_parameterValStruct_t(bus_handle, nval, retVal);
     }
 
+    CcspTraceError(("%s - %d : Failed to get Parameter Values\n", __FUNCTION__, __LINE__));
     return ANSC_STATUS_FAILURE;
 }
 
