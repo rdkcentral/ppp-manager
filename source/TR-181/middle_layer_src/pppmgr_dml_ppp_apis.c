@@ -380,7 +380,7 @@ PppMgr_StartPppClient (UINT InstanceNumber)
                 }
 
                 /* Get previous ppp session details */
-                if(fp = fopen("/nvram/last_ppp_session", "r"))
+                if(fp = fopen(("/nvram/last_ppp_session", "r")))
                 {
                     fscanf(fp,"%s", ppp_mac_addr);
 
