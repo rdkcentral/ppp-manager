@@ -53,6 +53,14 @@
 #define PPP_EXIT_HANGUP              16
 #define PPP_EXIT_AUTH_TOPEER_FAILED  19
 
+#ifdef PPP_RETRY_ALGO_ENABLED
+#define PPP_EXIT_LCP_TIMEOUT         101
+#define PPP_EXIT_AUTH_TIMEOUT        102
+#define PPP_EXIT_IPCP_TIMEOUT        103
+#define PPP_EXIT_IPv6CP_TIMEOUT      104
+#define PPP_EXIT_AUTH_ERROR          105
+#endif
+
 #define PPP_EVENT_QUEUE_NAME "/pppmgr_queue"
 #define MAX_QUEUE_LENGTH           100
 
@@ -92,6 +100,8 @@ static char *pppStateNames[] =
     [PPP_INTERFACE_PENDING_DISCONNET] = "PPP_INTERFACE_PENDING_DISCONNET",
     [PPP_INTERFACE_DISCONNECTING] = "PPP_INTERFACE_DISCONNECTING",
     [PPP_INTERFACE_DISCONNECTED] = "PPP_INTERFACE_DISCONNECTED",
+    [PPP_INTERFACE_LINK_DEAD] = "PPP_INTERFACE_LINK_DEAD",
+    [PPP_INTERFACE_AUTH_ERROR] = "PPP_INTERFACE_AUTH_ERROR",
     [PPP_INTERFACE_LCP_ECHO_FAILED] = "PPP_INTERFACE_LCP_ECHO_FAILED",
     [PPP_INTERFACE_AUTH_FAILED] = "PPP_INTERFACE_AUTH_FAILED",
     [PPP_IPCP_COMPLETED] = "PPP_IPCP_COMPLETED",
@@ -100,7 +110,6 @@ static char *pppStateNames[] =
     [PPP_IPV6CP_FAILED] = "PPP_IPV6CP_FAILED",
     [PPP_LCP_AUTH_COMPLETED] = "PPP_LCP_AUTH_COMPLETED",
     [PPP_MAX_STATE] = "PPP_MAX_STATE"
-
 };
 
 /*-------------------Extern declarations--------------------*/
@@ -541,7 +550,10 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                 break;
 
             case PPP_INTERFACE_DISCONNECTED:
-            case PPP_INTERFACE_DOWN:
+#ifdef PPP_RETRY_ALGO_ENABLED
+            case PPP_INTERFACE_LINK_DEAD:
+#endif
+	    case PPP_INTERFACE_DOWN:
                 pEntry->Info.SRU = 0;
                 pEntry->Info.SRD = 0;
                 pEntry->Info.Status = DML_IF_STATUS_Down;
@@ -559,9 +571,29 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                     case PPP_EXIT_AUTH_TOPEER_FAILED:
                         pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_AUTHENTICATION_FAILURE;
                         break;
+#ifdef PPP_RETRY_ALGO_ENABLED
+                    case PPP_EXIT_AUTH_ERROR:
+                        pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_AUTHENTICATION_FAILURE;
+                        PppMgr_stopPppoe();
+                        break;
+#endif
                     case PPP_EXIT_HANGUP:
                         pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_ISP_TIME_OUT;
                         break;
+#ifdef PPP_RETRY_ALGO_ENABLED
+		    case PPP_EXIT_LCP_TIMEOUT:
+                        pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_LCP_TIMEOUT;
+                        break;
+                    case PPP_EXIT_AUTH_TIMEOUT:
+                        pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_AUTH_TIMEOUT;
+                        break;
+                    case PPP_EXIT_IPCP_TIMEOUT:
+                        pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_IPCP_TIMEOUT;
+                        break;
+                    case PPP_EXIT_IPv6CP_TIMEOUT:
+                        pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_IPv6CP_TIMEOUT;
+                        break;
+#endif
                     default:
                         pEntry->Info.LastConnectionError = DML_PPP_CONN_ERROR_UNKNOWN;
                         break;
@@ -600,10 +632,17 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                 pEntry->Info.Status = DML_IF_STATUS_Down;
                 pEntry->Info.ConnectionStatus = DML_PPP_CONN_STATUS_AuthenticationFailed;
                 snprintf(WanPppLinkStatus, sizeof(WanPppLinkStatus), DOWN);
+                updatedParam = 1;
+                break;
+#ifdef PPP_RETRY_ALGO_ENABLED
+	    case PPP_INTERFACE_AUTH_ERROR:
+                pEntry->Info.Status = DML_IF_STATUS_Down;
+                pEntry->Info.ConnectionStatus = DML_PPP_CONN_STATUS_AuthenticationFailed;
+                snprintf(WanPppLinkStatus, sizeof(WanPppLinkStatus), "Down");
                 PppMgr_stopPppoe();
                 updatedParam = 1;
                 break;
-
+#endif
             default:
                 pEntry->Info.Status = DML_IF_STATUS_Down;
                 pEntry->Info.ConnectionStatus = DML_PPP_CONN_STATUS_Disconnected;
@@ -884,6 +923,27 @@ static ANSC_STATUS PppMgr_ProcessPppState(ipc_msg_payload_t ipcMsg)
 
     switch(ipcMsg.data.pppEventMsg.pppState)
     {
+#ifdef PPP_RETRY_ALGO_ENABLED
+	case    PPP_INTERFACE_AUTH_ERROR:
+	    sysevent_set(sysevent_fd, sysevent_token, "ppp_auth_code", "0001", 0);
+            if (PppMgr_ProcessStateChangedMsg(InstanceNumber, ipcMsg.data.pppEventMsg) == ANSC_STATUS_FAILURE)
+            {
+                CcspTraceError(("[%s-%d] Failed to proccess PPP_LCP_STATE_CHANGED  message \n",
+                         __FUNCTION__, __LINE__));
+
+                retStatus = ANSC_STATUS_FAILURE;
+            }
+            CcspTraceInfo(("[%s-%d] PPP_NCP_IPCP_PARAM message received\n", __FUNCTION__, __LINE__));
+
+            if(PppMgr_ProcessIpcpParams(InstanceNumber, ipcMsg.data.pppEventMsg) == ANSC_STATUS_FAILURE)
+            {
+                   CcspTraceError(("[%s-%d] Failed to proccess PPP_NCP_IPCP_PARAM  message \n",
+                           __FUNCTION__, __LINE__));
+
+                 retStatus = ANSC_STATUS_FAILURE;
+            }
+            break;
+#endif
         case    PPP_INTERFACE_UP:
         case    PPP_INTERFACE_DOWN:
         case    PPP_INTERFACE_UNCONFIGURED:
@@ -892,6 +952,9 @@ static ANSC_STATUS PppMgr_ProcessPppState(ipc_msg_payload_t ipcMsg)
         case    PPP_INTERFACE_PENDING_DISCONNET:
         case    PPP_INTERFACE_DISCONNECTING:
         case    PPP_INTERFACE_DISCONNECTED:
+#ifdef PPP_RETRY_ALGO_ENABLED
+	case    PPP_INTERFACE_LINK_DEAD:
+#endif
         case    PPP_INTERFACE_LCP_ECHO_FAILED:
         case    PPP_INTERFACE_AUTH_FAILED:
         case    PPP_LCP_AUTH_COMPLETED:
@@ -923,7 +986,11 @@ static ANSC_STATUS PppMgr_ProcessPppState(ipc_msg_payload_t ipcMsg)
         case PPP_IPV6CP_FAILED:
 
             CcspTraceInfo(("[%s-%d] PPP_NCP_IPCP6_PARAM message received\n", __FUNCTION__, __LINE__));
-
+#ifdef PPP_RETRY_ALGO_ENABLED
+	    /* Set dibbler-restart true and SIGUSR2 to ipv6rtmon if IPV6CP is failed*/
+            v_secure_system("sysevent set dibbler-restart true");
+            v_secure_system("kill -12 `pidof /usr/bin/ipv6rtmon`");
+#endif
             if(PppMgr_ProcessIpv6cpParams(InstanceNumber, ipcMsg.data.pppEventMsg) == ANSC_STATUS_FAILURE)
             {
                 CcspTraceError(("[%s-%d] Failed to proccess PPP_NCP_IPCP_PARAM  message \n",
