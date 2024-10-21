@@ -37,6 +37,7 @@
 #include "pppmgr_dml_ppp_apis.h"
 #include "pppmgr_dml.h"
 #include <regex.h>
+#include "platform_hal.h"
 
 #define NET_STATS_FILE "/proc/net/dev"
 #define PPPoE_VLAN_IF_NAME  "vlan101"
