@@ -1106,13 +1106,6 @@ ANSC_STATUS PppMgr_Init()
     }
     CcspTraceInfo(("%s %d - IPC server started successfully!\n", __FUNCTION__, __LINE__ ));
 
-    // Initialise syscfg
-    if (syscfg_init() < 0)
-    {
-        CcspTraceError(("failed to initialise syscfg"));
-        return ANSC_STATUS_FAILURE;
-    }
-
     // Initialize sysevent
     if ( DmlPppSyseventInit( ) < 0 )
     {
