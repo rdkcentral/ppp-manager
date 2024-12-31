@@ -73,6 +73,12 @@ AM_CONDITIONAL(CCSP_ARCH_ATOM, test "x$CCSP_ARCH" = xatom)
 AM_CONDITIONAL(CCSP_ARCH_PC, test "x$CCSP_ARCH" = xpc)
 AM_CONDITIONAL(CCSP_ARCH_MIPS, test "x$CCSP_ARCH" = xmips)
 
+#Add git version
+m4_define([GITVERSION],
+  m4_esyscmd_s([git describe --tags --always --dirty 2>/dev/null || echo "undefined"])
+)
+AC_SUBST([GIT_VERSION], [GITVERSION])
+
 # Specify ccsp platform (device)
 
 AC_ARG_WITH([ccsp-platform],
