@@ -55,6 +55,8 @@
 
 #define PPP_EVENT_QUEUE_NAME "/pppmgr_queue"
 #define MAX_QUEUE_LENGTH           100
+#define BUFFER_SIZE                256
+#define MAC_ADDRESS                32
 
 /*-------------------declarations--------------------*/
 int       sysevent_fd = -1;
@@ -546,6 +548,8 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
     char WanPppLinkStatus[64] = { 0 };
     uint32_t updatedParam = 0;
     char paramValue[256]   = {0};
+    char      macAddr[MAC_ADDRESS] = {0};
+    char      buffer[BUFFER_SIZE] = {0};
 
     if(InstanceNumber <= 0 )
     {
@@ -597,7 +601,53 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                 get_session_id(&pEntry->Info.SessionID, pEntry);
                 sprintf(paramValue, "%ld", pEntry->Info.SessionID);
                 PppMgr_RdkBus_SetParamValuesToDB(PSM_PPP_SESSIONID, paramValue);
+                if (pEntry->Cfg.LinkType == DML_PPPoE_LINK_TYPE)
+                {
+                    FILE *fp = fopen("/proc/net/pppoe", "r");
+                    if (fp != NULL)
+                    {
+                        //skip the header part
+                        if(fgets(buffer,sizeof(buffer), fp) != NULL)
+                        {
+                            if(fgets(buffer,sizeof(buffer), fp) != NULL)
+                            {
+                                if(sscanf(buffer, "%*s %32s %*s", macAddr) == 1)
+                                {
+                                    FILE *nvram_fp = fopen("/nvram/last_ppp_session", "w");
+                                    if (nvram_fp != NULL)
+                                    {
+                                        fprintf(nvram_fp, "%s", macAddr);
+                                        fclose(nvram_fp);
+                                        CcspTraceInfo(("[%s-%d] Saved Server MAC Address to /nvram/last_ppp_session\n", __FUNCTION__, __LINE__));
+                                    }
+                                    else
+                                    {
+                                        CcspTraceError(("[%s-%d] Failed to open /nvram/last_ppp_session for writing\n", __FUNCTION__, __LINE__));
+                                    }
+                                }
+                                else
+                                {
+                                    CcspTraceError(("[%s-%d] /nvram/last_ppp_session is empty\n", __FUNCTION__, __LINE__));
+                                }
+                           }
+                           else
+                           {
+                               CcspTraceError(("[%s-%d] Failed to read the /proc/net/pppoe file\n", __FUNCTION__, __LINE__));
+                           }
+                           fclose(fp);
+                        }
+                        else
+                        {
+                            CcspTraceError(("[%s-%d] /proc/net/pppoe file is empty\n", __FUNCTION__, __LINE__));
+                        }
+                    }
+                    else
+                    {
+                        CcspTraceError(("[%s-%d] Failed to Open the /proc/net/pppoe file\n", __FUNCTION__, __LINE__));
+                    }
+                }
                 break;
+
 
             case PPP_INTERFACE_DISCONNECTING:
                 pEntry->Info.Status = DML_IF_STATUS_Down;
