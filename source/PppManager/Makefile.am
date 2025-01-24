@@ -43,4 +43,5 @@ pppmanager_CFLAGS = $(SYSTEMD_CFLAGS) $(NONROOT_CFLAGS)
 pppmanager_SOURCES = pppmgr_ssp_action.c pppmgr_ssp_main.c pppmgr_ssp_messagebus_interface.c pppmgr_ipc.c
 pppmanager_LDFLAGS = -lccsp_common -ldl $(SYSTEMD_LDFLAGS) -lrdkloggers -lhal_platform -lnanomsg -lrt
 pppmanager_LDADD =  $(pppmanager_DEPENDENCIES)
+pppmanager_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 

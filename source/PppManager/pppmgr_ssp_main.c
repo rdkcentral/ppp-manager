@@ -251,6 +251,7 @@ int main(int argc, char* argv[])
 
     pComponentName          = RDK_COMPONENT_NAME_PPP_MANAGER;
 
+    CcspTraceInfo(("Version : %s \n",GIT_VERSION ));
 #if defined(_ANSC_WINDOWSNT)
     AnscStartupSocketWrapper(NULL);
 
