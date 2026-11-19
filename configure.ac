@@ -145,6 +145,22 @@ AC_SUBST(SYSTEMD_CFLAGS)
 AC_SUBST(SYSTEMD_LDFLAGS)
 AC_SUBST(NONROOT_CFLAGS)
 
+MULTIWAN_CFLAGS=""
+AC_ARG_ENABLE([multiwan],
+             AS_HELP_STRING([--enable-multiwan],[enable MultiWAN PPP support (default is no)]),
+             [
+              case "${enableval}" in
+               yes) MULTIWAN_ENABLED=true
+                    MULTIWAN_CFLAGS="-DFEATURE_RDKB_MULTIWAN";;
+               no)  MULTIWAN_ENABLED=false;;
+               *) AC_MSG_ERROR([bad value ${enableval} for --enable-multiwan ]);;
+              esac
+             ],
+             [MULTIWAN_ENABLED=false])
+AM_CONDITIONAL(MULTIWAN_ENABLED, test "x$MULTIWAN_ENABLED" = xtrue)
+AC_SUBST(MULTIWAN_CFLAGS)
+
+
 AC_CONFIG_FILES(
     source/TR-181/middle_layer_src/Makefile
     source/TR-181/Makefile

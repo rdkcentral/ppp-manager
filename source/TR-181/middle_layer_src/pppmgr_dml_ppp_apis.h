@@ -35,6 +35,8 @@
 #ifndef  _PPPMGR_DML_PPP_APIS_H_
 #define  _PPPMGR_DML_PPP_APIS_H_
 
+#include <stddef.h>
+
 #include "pppmgr_dml.h"
 #include "utctx_api.h"
 #include <net/if.h>
@@ -94,7 +96,23 @@
 #define WAN_IFACE_NAME             "Device.X_RDK_WanManager.CPEInterface.%d.Wan.Name"
 #endif /* WAN_MANAGER_UNIFICATION_ENABLED */
 
+
 #define DATAMODEL_PARAM_LENGTH    256
+
+/* MultiWAN / shared PPP path helpers */
+#define PPP_IFACE_INSTANCE_BASE           1
+#define PPP_INVALID_INSTANCE              (-1)
+#define PPP_IFACE_NAME_MAX_LEN            64   /* matches DML_PPP_IF_INFO.Name[] */
+#define PPP_SESSION_FILE_PATH_LEN         128
+#define PPP_SHELL_CMD_LEN                 256
+#define PPP_CONF_PATH_FMT                 "/etc/ppp/%s.conf"
+#define PPP_SESSION_FILE_PATH_FMT         "/nvram/last_%s_session"
+#define PPP_SESSION_FILE_DEFAULT          "/nvram/last_ppp_session"
+#if defined(FEATURE_RDKB_MULTIWAN)
+#define PPP_MULTIWAN_ENV_PREFIX           "RDKB_MULTIWAN=1 "
+#else
+#define PPP_MULTIWAN_ENV_PREFIX           ""
+#endif
 
 #define PANDM_COMPONENT_NAME  "eRT.com.cisco.spvtg.ccsp.pam"
 #define PANDM_DBUS_PATH       "/com/cisco/spvtg/ccsp/pam"
@@ -138,7 +156,14 @@ ANSC_STATUS  PppMgr_checkPidExist( pid_t pppPid );
 
 ANSC_STATUS PppMgr_stopPppProcess( pid_t pid );
 
+ANSC_STATUS PppMgr_ValidatePppIfaceName(const char *pppIfaceName);
+ANSC_STATUS PppMgr_GetPppoeConfPath(const char *pppIfaceName, char *pathBuf, size_t pathBufLen);
+ANSC_STATUS PppMgr_GetSessionFilePath(const char *pppIfaceName, char *pathBuf, size_t pathBufLen);
+#if defined(FEATURE_RDKB_MULTIWAN)
+ANSC_STATUS PppMgr_stopPppoe(const char *pppIfaceName);
+#else
 ANSC_STATUS PppMgr_stopPppoe(void);
+#endif
 
 ANSC_STATUS DmlWanmanagerSetParamValues( char *pComponent, char *pBus,
         char *pParamName, char *pParamVal, enum dataType_e type, unsigned int bCommitFlag );
@@ -176,6 +201,9 @@ int get_session_id(ULONG * p_id, ANSC_HANDLE hContext);
 ANSC_STATUS PppMgr_SendDataToQ (PPPEventQData * pEventData);
 
 pid_t PppMgr_getPppPid(char * ifname);
+#if defined(FEATURE_RDKB_MULTIWAN)
+pid_t PppMgr_findPppPidByIfname(const char *pppIfaceName);
+#endif
 
 bool PppMgr_EnableIf (UINT InstanceNumber, bool Enable);
 
