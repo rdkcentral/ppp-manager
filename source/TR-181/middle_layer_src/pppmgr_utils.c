@@ -629,6 +629,19 @@ pid_t PppMgr_getPppPid(char * ifname)
     return pid;
 }
 
+#if defined(FEATURE_RDKB_MULTIWAN)
+/* One-shot pid lookup for IPC demux (no sleep). */
+pid_t PppMgr_findPppPidByIfname(const char *pppIfaceName)
+{
+    if (pppIfaceName == NULL || pppIfaceName[0] == '\0')
+    {
+        return 0;
+    }
+    /* check_proc_entry_for_pid takes char*; Name is mutable table storage at callers */
+    return check_proc_entry_for_pid("pppd", (char *)pppIfaceName);
+}
+#endif
+
 int PppMgr_getIfaceDataWithPid (pid_t pid)
 {
 

@@ -342,14 +342,28 @@ PppMgr_StartPppClient (UINT InstanceNumber)
                     pEntry->Cfg.Password, auth_proto, pEntry->Cfg.Alias);
 #else
                 /* Assume a default rp-pppoe config exist. Update rp-pppoe configuration */
-                ret =  snprintf(config_command, sizeof(config_command), "pppoe_config.sh %s %s %s %s PPPoA %ld %ld",
+                ret =  snprintf(config_command, sizeof(config_command),
+                        PPP_MULTIWAN_ENV_PREFIX "pppoe_config.sh %s %s %s %s PPPoA %ld %ld",
                         pEntry->Cfg.Username, pEntry->Cfg.Password, pEntry->Info.InterfaceServiceName, pEntry->Info.Name, pEntry->Info.LCPEcho, pEntry->Info.LCPEchoRetry);
                 if(ret > 0 && ret <= sizeof(config_command))
                 {
                     system(config_command);
                 }
                 /* start rp-pppoe */
+#if defined(FEATURE_RDKB_MULTIWAN)
+                {
+                    char pppoeConfPath[PPP_SHELL_CMD_LEN] = {0};
+                    if (PppMgr_GetPppoeConfPath(pEntry->Info.Name, pppoeConfPath, sizeof(pppoeConfPath)) != ANSC_STATUS_SUCCESS)
+                    {
+                        CcspTraceError(("%s %d: invalid PPP iface name '%s'\n", __FUNCTION__, __LINE__, pEntry->Info.Name));
+                        PppMgr_GetIfaceData_release(pEntry);
+                        return ANSC_STATUS_FAILURE;
+                    }
+                    ret = snprintf(command, sizeof(command), "/usr/sbin/pppoe-start %s", pppoeConfPath);
+                }
+#else
                 ret = snprintf(command, sizeof(command), "/usr/sbin/pppoe-start");
+#endif
                 if(ret > 0 && ret <= sizeof(command))
                 {
                     CcspTraceInfo((" successfully started rp-pppoe \n"));
@@ -376,7 +390,8 @@ PppMgr_StartPppClient (UINT InstanceNumber)
                 }
 
                 /* Assume a defule rp-pppoe config exist. Update rp-pppoe configuration */
-                ret = snprintf(config_command, sizeof(config_command), "pppoe_config.sh '%s' '%s' %s %s PPPoE %ld %ld %d ",
+                ret = snprintf(config_command, sizeof(config_command),
+                        PPP_MULTIWAN_ENV_PREFIX "pppoe_config.sh '%s' '%s' %s %s PPPoE %ld %ld %d ",
                         pEntry->Cfg.Username, pEntry->Cfg.Password, VLANInterfaceName, pEntry->Info.Name, pEntry->Info.LCPEcho , pEntry->Info.LCPEchoRetry,pEntry->Cfg.MaxMRUSize);
                 if(ret > 0 && ret <= sizeof(config_command))
                 {
@@ -384,29 +399,49 @@ PppMgr_StartPppClient (UINT InstanceNumber)
                 }
 
                 /* Get previous ppp session details */
-                if((fp = fopen("/nvram/last_ppp_session", "r")))
                 {
-                    fscanf(fp,"%s", ppp_mac_addr);
-
-                    /* Send PADT for previous ppp session */
-                    ret = snprintf(padt_command, sizeof(padt_command), "pppoe -I %s -e %ld:%s -k", VLANInterfaceName, pEntry->Info.SessionID, ppp_mac_addr);
-                    CcspTraceInfo((" PADT command : pppoe -I %s -e %ld:%s -k\n",VLANInterfaceName, pEntry->Info.SessionID, ppp_mac_addr));
-
-                    if(ret > 0 && ret <= sizeof(padt_command))
+                    char sessionFilePath[PPP_SESSION_FILE_PATH_LEN] = {0};
+                    if (PppMgr_GetSessionFilePath(pEntry->Info.Name, sessionFilePath, sizeof(sessionFilePath)) != ANSC_STATUS_SUCCESS)
                     {
-                        system(padt_command);
-                        CcspTraceInfo((" Successfully sent PADT for previous ppp session \n"));
+                        CcspTraceError(("%s %d: failed to build session file path\n", __FUNCTION__, __LINE__));
                     }
+                    else if ((fp = fopen(sessionFilePath, "r")))
+                    {
+                        if (fscanf(fp, "%255s", ppp_mac_addr) == 1)
+                        {
+                            /* Send PADT for previous ppp session */
+                            ret = snprintf(padt_command, sizeof(padt_command), "pppoe -I %s -e %ld:%s -k", VLANInterfaceName, pEntry->Info.SessionID, ppp_mac_addr);
+                            CcspTraceInfo((" PADT command : pppoe -I %s -e %ld:%s -k\n",VLANInterfaceName, pEntry->Info.SessionID, ppp_mac_addr));
 
-                    fclose(fp);
-                }
-                else
-                {
-                    CcspTraceInfo(("Failed to read previous ppp session details \n"));
+                            if(ret > 0 && ret <= (int)sizeof(padt_command))
+                            {
+                                system(padt_command);
+                                CcspTraceInfo((" Successfully sent PADT for previous ppp session \n"));
+                            }
+                        }
+                        fclose(fp);
+                    }
+                    else
+                    {
+                        CcspTraceInfo(("Failed to read previous ppp session details \n"));
+                    }
                 }
 
                 /* start rp-pppoe */
+#if defined(FEATURE_RDKB_MULTIWAN)
+                {
+                    char pppoeConfPath[PPP_SHELL_CMD_LEN] = {0};
+                    if (PppMgr_GetPppoeConfPath(pEntry->Info.Name, pppoeConfPath, sizeof(pppoeConfPath)) != ANSC_STATUS_SUCCESS)
+                    {
+                        CcspTraceError(("%s %d: invalid PPP iface name '%s'\n", __FUNCTION__, __LINE__, pEntry->Info.Name));
+                        PppMgr_GetIfaceData_release(pEntry);
+                        return ANSC_STATUS_FAILURE;
+                    }
+                    ret = snprintf(command, sizeof(command), "/usr/sbin/pppoe-start %s", pppoeConfPath);
+                }
+#else
                 ret = snprintf(command, sizeof(command), "/usr/sbin/pppoe-start");
+#endif
                 if(ret > 0 && ret <= sizeof(command))
                 {
                     CcspTraceInfo((" successfully started rp-pppoe \n"));
@@ -417,7 +452,11 @@ PppMgr_StartPppClient (UINT InstanceNumber)
 
         system(command);
 
+#if defined(FEATURE_RDKB_MULTIWAN)
+        pEntry->Info.pppPid = PppMgr_getPppPid(pEntry->Info.Name);
+#else
         pEntry->Info.pppPid = PppMgr_getPppPid(NULL);
+#endif
 
         pEntry->Cfg.WanInstanceNumber = WanIfaceInstance;
         pEntry->Cfg.WanVirtIfaceInstance = WanVirtIfaceInstance;
@@ -441,7 +480,11 @@ ANSC_STATUS PppMgr_StopPppClient (UINT InstanceNumber)
         PppMgr_stopPppProcess(pEntry->Info.pppPid);
         pEntry->Info.pppPid = 0;
 #else
+#if defined(FEATURE_RDKB_MULTIWAN)
+        PppMgr_stopPppoe(pEntry->Info.Name);
+#else
         PppMgr_stopPppoe();
+#endif
 #endif
 
         // reset all session data
@@ -840,12 +883,113 @@ ANSC_STATUS PppMgr_stopPppProcess(pid_t pid)
     return ANSC_STATUS_SUCCESS;
 }
 
+ANSC_STATUS PppMgr_ValidatePppIfaceName(const char *pppIfaceName)
+{
+    size_t idx;
+
+    if (pppIfaceName == NULL || pppIfaceName[0] == '\0' ||
+        strlen(pppIfaceName) >= PPP_IFACE_NAME_MAX_LEN)
+    {
+        CcspTraceError(("%s %d: invalid PPP iface name\n", __FUNCTION__, __LINE__));
+        return ANSC_STATUS_FAILURE;
+    }
+
+    /* Reject path traversal / unsafe names for conf and session paths */
+    for (idx = 0; pppIfaceName[idx] != '\0'; idx++)
+    {
+        char ch = pppIfaceName[idx];
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+              (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' || ch == '.'))
+        {
+            CcspTraceError(("%s %d: unsafe PPP iface name '%s'\n", __FUNCTION__, __LINE__, pppIfaceName));
+            return ANSC_STATUS_FAILURE;
+        }
+    }
+
+    return ANSC_STATUS_SUCCESS;
+}
+
+ANSC_STATUS PppMgr_GetPppoeConfPath(const char *pppIfaceName, char *pathBuf, size_t pathBufLen)
+{
+    int written;
+
+    if (pathBuf == NULL || pathBufLen == 0)
+    {
+        CcspTraceError(("%s %d: invalid output buffer\n", __FUNCTION__, __LINE__));
+        return ANSC_STATUS_FAILURE;
+    }
+
+    if (PppMgr_ValidatePppIfaceName(pppIfaceName) != ANSC_STATUS_SUCCESS)
+    {
+        return ANSC_STATUS_FAILURE;
+    }
+
+    written = snprintf(pathBuf, pathBufLen, PPP_CONF_PATH_FMT, pppIfaceName);
+    if (written <= 0 || (size_t)written >= pathBufLen)
+    {
+        CcspTraceError(("%s %d: failed to build PPPoE conf path\n", __FUNCTION__, __LINE__));
+        return ANSC_STATUS_FAILURE;
+    }
+
+    return ANSC_STATUS_SUCCESS;
+}
+
+ANSC_STATUS PppMgr_GetSessionFilePath(const char *pppIfaceName, char *pathBuf, size_t pathBufLen)
+{
+    int written;
+
+    if (pathBuf == NULL || pathBufLen == 0)
+    {
+        CcspTraceError(("%s %d: invalid output buffer\n", __FUNCTION__, __LINE__));
+        return ANSC_STATUS_FAILURE;
+    }
+
+#if defined(FEATURE_RDKB_MULTIWAN)
+    if (PppMgr_ValidatePppIfaceName(pppIfaceName) != ANSC_STATUS_SUCCESS)
+    {
+        return ANSC_STATUS_FAILURE;
+    }
+    written = snprintf(pathBuf, pathBufLen, PPP_SESSION_FILE_PATH_FMT, pppIfaceName);
+#else
+    (void)pppIfaceName;
+    written = snprintf(pathBuf, pathBufLen, "%s", PPP_SESSION_FILE_DEFAULT);
+#endif
+    if (written <= 0 || (size_t)written >= pathBufLen)
+    {
+        CcspTraceError(("%s %d: failed to build session file path\n", __FUNCTION__, __LINE__));
+        return ANSC_STATUS_FAILURE;
+    }
+
+    return ANSC_STATUS_SUCCESS;
+}
+
+#if defined(FEATURE_RDKB_MULTIWAN)
+ANSC_STATUS PppMgr_stopPppoe(const char *pppIfaceName)
+{
+    char command[PPP_SHELL_CMD_LEN] = {0};
+    char pppoeConfPath[PPP_SHELL_CMD_LEN] = {0};
+
+    if (PppMgr_GetPppoeConfPath(pppIfaceName, pppoeConfPath, sizeof(pppoeConfPath)) != ANSC_STATUS_SUCCESS)
+    {
+        return ANSC_STATUS_FAILURE;
+    }
+
+    if (snprintf(command, sizeof(command), "/usr/sbin/pppoe-stop %s", pppoeConfPath) <= 0)
+    {
+        return ANSC_STATUS_FAILURE;
+    }
+    system(command);
+
+    return ANSC_STATUS_SUCCESS;
+}
+#else
 ANSC_STATUS PppMgr_stopPppoe(void)
 {
     system("/usr/sbin/pppoe-stop");
 
     return ANSC_STATUS_SUCCESS;
 }
+#endif
 
 ANSC_STATUS DmlPppMgrGetParamValues(char *pComponent, char *pBus, char *pParamName, char *pReturnVal)
 {

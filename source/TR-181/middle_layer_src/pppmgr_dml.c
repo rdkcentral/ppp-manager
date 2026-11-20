@@ -970,7 +970,22 @@ Interface_SetParamUlongValue
     {
         /* save update to backup */
         pEntry->Cfg.AutoDisconnectTime = uValue;
+#if defined(FEATURE_RDKB_MULTIWAN)
+        {
+            char pppoeConfPath[PPP_SHELL_CMD_LEN] = {0};
+            if (PppMgr_GetPppoeConfPath(pEntry->Info.Name, pppoeConfPath, sizeof(pppoeConfPath)) == ANSC_STATUS_SUCCESS)
+            {
+                snprintf(buf, sizeof(buf), "sleep %ld && pppoe-stop %s &",
+                         pEntry->Cfg.AutoDisconnectTime, pppoeConfPath);
+            }
+            else
+            {
+                CcspTraceError(("%s %d: invalid PPP iface name for AutoDisconnect\n", __FUNCTION__, __LINE__));
+            }
+        }
+#else
         snprintf(buf, sizeof(buf), "sleep %ld && pppoe-stop &",pEntry->Cfg.AutoDisconnectTime);
+#endif
         system(buf);
         retStatus = TRUE;
     }

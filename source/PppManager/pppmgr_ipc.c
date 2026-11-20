@@ -613,16 +613,26 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                             {
                                 if(sscanf(buffer, "%*s %32s %*s", macAddr) == 1)
                                 {
-                                    FILE *nvram_fp = fopen("/nvram/last_ppp_session", "w");
-                                    if (nvram_fp != NULL)
                                     {
-                                        fprintf(nvram_fp, "%s", macAddr);
-                                        fclose(nvram_fp);
-                                        CcspTraceInfo(("[%s-%d] Saved Server MAC Address to /nvram/last_ppp_session\n", __FUNCTION__, __LINE__));
-                                    }
-                                    else
-                                    {
-                                        CcspTraceError(("[%s-%d] Failed to open /nvram/last_ppp_session for writing\n", __FUNCTION__, __LINE__));
+                                        char sessionFilePath[PPP_SESSION_FILE_PATH_LEN] = {0};
+                                        if (PppMgr_GetSessionFilePath(pEntry->Info.Name, sessionFilePath, sizeof(sessionFilePath)) != ANSC_STATUS_SUCCESS)
+                                        {
+                                            CcspTraceError(("[%s-%d] Failed to build session file path\n", __FUNCTION__, __LINE__));
+                                        }
+                                        else
+                                        {
+                                            FILE *nvram_fp = fopen(sessionFilePath, "w");
+                                            if (nvram_fp != NULL)
+                                            {
+                                                fprintf(nvram_fp, "%s", macAddr);
+                                                fclose(nvram_fp);
+                                                CcspTraceInfo(("[%s-%d] Saved Server MAC Address to %s\n", __FUNCTION__, __LINE__, sessionFilePath));
+                                            }
+                                            else
+                                            {
+                                                CcspTraceError(("[%s-%d] Failed to open %s for writing\n", __FUNCTION__, __LINE__, sessionFilePath));
+                                            }
+                                        }
                                     }
                                 }
                                 else
@@ -705,7 +715,11 @@ static ANSC_STATUS PppMgr_ProcessStateChangedMsg(int InstanceNumber, ipc_ppp_eve
                 pEntry->Info.Status = DML_IF_STATUS_Down;
                 pEntry->Info.ConnectionStatus = DML_PPP_CONN_STATUS_AuthenticationFailed;
                 snprintf(WanPppLinkStatus, sizeof(WanPppLinkStatus), DOWN);
+#if defined(FEATURE_RDKB_MULTIWAN)
+                PppMgr_stopPppoe(pEntry->Info.Name);
+#else
                 PppMgr_stopPppoe();
+#endif
                 updatedParam = 1;
                 break;
 
@@ -979,7 +993,41 @@ static ANSC_STATUS PppMgr_ProcessPppState(ipc_msg_payload_t ipcMsg)
 
     int InstanceNumber = PppMgr_getIfaceDataWithPid(ipcMsg.data.pppEventMsg.pid);
 
-    if(InstanceNumber == -1)
+#if defined(FEATURE_RDKB_MULTIWAN)
+    /* During CONNECTING, pppPid may not be stored yet — bind by ifname cmdline */
+    if (InstanceNumber == PPP_INVALID_INSTANCE &&
+        (ipcMsg.data.pppEventMsg.pppState == PPP_INTERFACE_CONNECTING ||
+         ipcMsg.data.pppEventMsg.pppState == PPP_INTERFACE_UP))
+    {
+        int totalNoOfPppIface = DmlGetTotalNoOfPPPInterfaces(NULL);
+        int ifaceInstance;
+
+        for (ifaceInstance = PPP_IFACE_INSTANCE_BASE;
+             ifaceInstance <= totalNoOfPppIface;
+             ifaceInstance++)
+        {
+            PDML_PPP_IF_FULL pIfaceEntry = PppMgr_GetIfaceData_locked((UINT)ifaceInstance);
+            if (pIfaceEntry == NULL)
+            {
+                continue;
+            }
+            if (pIfaceEntry->Cfg.bEnabled == TRUE && pIfaceEntry->Info.Name[0] != '\0')
+            {
+                pid_t ifacePppdPid = PppMgr_findPppPidByIfname(pIfaceEntry->Info.Name);
+                if (ifacePppdPid != 0 && ifacePppdPid == ipcMsg.data.pppEventMsg.pid)
+                {
+                    pIfaceEntry->Info.pppPid = ifacePppdPid;
+                    InstanceNumber = (int)pIfaceEntry->Cfg.InstanceNumber;
+                    PppMgr_GetIfaceData_release(pIfaceEntry);
+                    break;
+                }
+            }
+            PppMgr_GetIfaceData_release(pIfaceEntry);
+        }
+    }
+#endif
+
+    if(InstanceNumber == PPP_INVALID_INSTANCE)
     {
         CcspTraceError(("%s %d: cannot find PPP Interface instance from pid : %d\n", __FUNCTION__, __LINE__, ipcMsg.data.pppEventMsg.pid));
 
